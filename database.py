@@ -4,8 +4,8 @@ from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 
 
-# DATABASE_URL = "postgresql://ccwdb_dev1:SpeedMarsTrainRecordBoth49@89.233.105.216:5460/ccwdb"
-DATABASE_URL = "postgresql://postgres:#Karuna2003@localhost/CleanCityWatch"
+DATABASE_URL = "postgresql://ccwdb_dev1:SpeedMarsTrainRecordBoth49@89.233.105.216:5460/ccwdb"
+
 
 schema_name = "your_schema_name"
 
