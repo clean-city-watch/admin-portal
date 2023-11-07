@@ -2,13 +2,10 @@ from sqlalchemy import create_engine, Column, Integer, String, DateTime, Foreign
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
+from decouple import config
 
 
-DATABASE_URL = "postgresql://ccwdb_dev1:SpeedMarsTrainRecordBoth49@89.233.105.216:5460/ccwdb"
-
-
-schema_name = "your_schema_name"
-
+DATABASE_URL = config('DATABASE_URL')
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

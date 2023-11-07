@@ -1,17 +1,16 @@
 import string
 from fastapi import Depends, FastAPI, Form, HTTPException
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from crud import delete_user_by_email, get_user_by_email
-from database import SessionLocal, User, create_tables, Base
+from database import SessionLocal, User, create_tables
 from pydantic import BaseModel
 from email_validator import validate_email, EmailNotValidError
 from sqlalchemy.orm import Session
 import secrets
-from database import Base
 import smtplib
 from email.message import EmailMessage
-from pydantic import BaseModel
+from decouple import config
+from sqlalchemy.orm import Session
 
 
 
@@ -22,23 +21,15 @@ def get_db():
     finally:
         db.close()
 
-from fastapi import Depends, FastAPI, Form, HTTPException
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
-from email_validator import validate_email, EmailNotValidError
-import smtplib
-from email.message import EmailMessage
-import os
-import secrets
+
 
 app = FastAPI()
 create_tables()
-SMTP_SERVER = "smtp.gmail.com"  # Gmail's SMTP server
-SMTP_PORT = 587  # Port for TLS
+EMAIL_SERVER =  config('EMAIL_SERVER')
+EMAIL_PORT =  config('EMAIL_PORT')
 
-# Your Gmail account details
-EMAIL_SENDER = "your-email"
-EMAIL_PASSWORD = "your-password"
+EMAIL_SENDER = config('EMAIL_SENDER')
+EMAIL_PASSWORD = config('EMAIL_PASSWORD')
 
 def send_email(email, subject, message):
     try:
@@ -51,7 +42,7 @@ def send_email(email, subject, message):
         msg["To"] = email
         
         # Connect to Gmail's SMTP server
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)          
+        server = smtplib.SMTP(EMAIL_SERVER, EMAIL_PORT)          
         server.starttls()
         # Login to your Gmail account
         server.login(EMAIL_SENDER, EMAIL_PASSWORD)
