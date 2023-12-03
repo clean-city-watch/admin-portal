@@ -2,12 +2,6 @@ from sqlalchemy.orm import Session
 from database import User
 
 # Create a new user
-def create_user(db: Session, email: str, otp: str):
-    user = User(email=email, otp=otp)
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
 
 # Retrieve a user by email
 def get_user_by_email(db: Session, email: str):

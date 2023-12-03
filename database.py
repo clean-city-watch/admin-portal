@@ -23,6 +23,3 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     
-
-def create_tables():
-    Base.metadata.create_all(bind=engine)
