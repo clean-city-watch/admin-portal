@@ -1,8 +1,8 @@
 import string
-from fastapi import Depends, FastAPI, Form, HTTPException
+from fastapi import Depends, FastAPI, Form, HTTPException,status
 from sqlalchemy import create_engine
-from crud import delete_user_by_email, get_user_by_email
-from database import SessionLocal, User
+from crud import delete_admin_user_by_email, delete_user_by_email, get_admin_user_by_email, get_user_by_email
+from database import SessionLocal, User,Users
 from pydantic import BaseModel
 from email_validator import validate_email, EmailNotValidError
 from sqlalchemy.orm import Session
@@ -13,9 +13,11 @@ from decouple import config
 from sqlalchemy.orm import Session
 from fastapi import Header
 
+from typing import List
+from datetime import datetime
+from fastapi.security import OAuth2PasswordBearer
 
-class TokenSchema(BaseModel):
-    token: str
+
 
 def get_db():
     db = SessionLocal()
@@ -27,7 +29,9 @@ def get_db():
 
 
 app = FastAPI()
-# create_tables()
+
+#------------------------- EMAIL SERVER CREDENTIALS  ------------------------------------------------------
+
 EMAIL_SERVER =  config('EMAIL_SERVER')
 EMAIL_PORT =  config('EMAIL_PORT')
 
@@ -35,6 +39,21 @@ EMAIL_SENDER = config('EMAIL_SENDER')
 EMAIL_PASSWORD = config('EMAIL_PASSWORD')
 
 
+#------------------------- ADMIN-USER ---------------------------------------------------------------------
+class EmailSchema(BaseModel):
+    email: str
+
+class SendOTPResponse(BaseModel):
+    message: str
+
+class UserResponse(BaseModel):
+    email: str
+    role: str
+
+class TokenSchema(BaseModel):
+    token: str
+
+#----------------------------------------Functions --------------------------------------------------------------------
 
 def send_email(email, subject, message):
     try:
@@ -65,15 +84,10 @@ def send_email(email, subject, message):
         raise HTTPException(status_code=500, detail="Failed to send email")
     
 
+#----------------------- API ENDPOINTS FOR ADMIN-USER MANAGEMENT -----------------------------------------------------------
 @app.get("/")
 def read_root():
     return {"Hello": "World"}
-
-class EmailSchema(BaseModel):
-    email: str
-
-class SendOTPResponse(BaseModel):
-    message: str
 
 @app.post("/send-otp/", response_model=SendOTPResponse)
 async def send_otp(
@@ -96,7 +110,7 @@ async def send_otp(
     token = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(30))
     # Encode the token as bytes
     token_bytes = token.encode('utf-8')
-    
+    print(token_bytes)
     user = User(email=email, otp=otp, role=role, token=token_bytes)
     message = f"Your OTP is: {otp}"
     subject = "OTP for login"
@@ -127,7 +141,90 @@ async def verify_otp(email: str = Form(...), otp: str = Form(...), db: Session =
 
     raise HTTPException(status_code=400, detail="Invalid OTP")
 
-#--------------- CRUD Operations Route for USER ---------------------------#
+
+# Assign a role to a user
+@app.put("/assign-role/")
+async def assign_role(email: str, role: str, db: Session = Depends(get_db)):
+    # Check if the provided role is valid
+    if role not in ["admin", "moderator"]:
+        raise HTTPException(status_code=400, detail="Invalid role")
+
+    user = get_admin_user_by_email(db, email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.role = role
+    db.commit()
+
+    return {"message": f"Role '{role}' assigned to the user with email '{email}' successfully"}
+
+# List existing admin users
+@app.get("/list-admin-users/", response_model=List[UserResponse])
+async def list_admin_users(db: Session = Depends(get_db)):
+    admin_users = db.query(User).filter(User.role == "admin").all()
+
+    # Convert the list of User objects to a list of dictionaries
+    admin_users_data = [{"email": user.email, "role": user.role} for user in admin_users]
+
+    return admin_users_data
+
+# Delete a admin-user
+@app.delete("/delete-admin-user/")
+async def delete_user_api(email: str, db: Session = Depends(get_db)):
+    user = delete_admin_user_by_email(db, email)
+    
+    if user:
+        return {"message": "User deleted successfully"}
+    else:
+        raise HTTPException(status_code=404, detail="User not found")
+
+
+#--------------------------------- CRUD Operations for USERS ---------------------------#
+
+
+class UserCreate(BaseModel):
+    email: str
+    password: str
+  
+
+# Dependency to get the current user (admin or moderator)
+def get_current_user(token: str = Depends(OAuth2PasswordBearer(tokenUrl="token")), db: Session = Depends(lambda: SessionLocal())):
+    user = db.query(User).filter(User.token == token).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    return user
+
+# Create a new user API
+@app.post("/create-user/", response_model=dict)
+async def create_user(
+    email: str = Form(...),
+    password: str = Form(...),
+    # current_user: Users = Depends(get_current_user),
+    db: Session = Depends(lambda: SessionLocal())
+):
+    # Check if the current user is an admin or moderator
+    # if current_user.role not in ["admin", "moderator"]:
+    #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+
+    # Create a new user
+    new_user = Users(
+        email=email,
+        password=password,
+        timestamp=datetime.now()
+    )
+
+    # Add the user to the database
+    db.add(new_user)
+    db.commit()
+
+    return {"message": "User created successfully", "user": new_user}
+
+# Get all users
+@app.get("/get-all-users/")
+async def get_all_users(db: Session = Depends(get_db)):
+    users = db.query(Users).all()
+    
+    return users
 
 
 @app.get("/get-user/")
@@ -140,13 +237,3 @@ async def get_user_api(email: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
 
 
-
-# Delete a user
-@app.delete("/delete-user/")
-async def delete_user_api(email: str, db: Session = Depends(get_db)):
-    user = delete_user_by_email(db, email)
-    
-    if user:
-        return {"message": "User deleted successfully"}
-    else:
-        raise HTTPException(status_code=404, detail="User not found")

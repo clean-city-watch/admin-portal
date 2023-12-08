@@ -21,5 +21,16 @@ class User(Base):
     role = Column(String) 
     token = Column(LargeBinary)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Users(Base):
+    __tablename__ = "users"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True)
+    password = Column(String)
+    timestamp = Column(DateTime(timezone=True))
+    organization_id = Column(Integer)
+ 
     
     
