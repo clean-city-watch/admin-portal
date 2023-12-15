@@ -1,8 +1,8 @@
 import string
 from fastapi import Depends, FastAPI, Form, HTTPException,status
 from sqlalchemy import create_engine
-from crud import delete_admin_user_by_email, delete_user_by_email, get_admin_user_by_email, get_user_by_email
-from database import SessionLocal, User,Users
+from crud import delete_admin_user_by_email, delete_user_by_email, get_admin_user_by_email, get_average_rating, get_most_active_users, get_posts_by_city, get_upvotes_per_post, get_user_by_email
+from database import SessionLocal, User,Users,Community
 from pydantic import BaseModel
 from email_validator import validate_email, EmailNotValidError
 from sqlalchemy.orm import Session
@@ -237,3 +237,55 @@ async def get_user_api(email: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
 
 
+#---------------------------------- Analytics APIs ------------------------------------------------------
+
+
+class CommunityResponse(BaseModel):
+    id: int
+    name: str
+    city: str
+
+    class Config:
+        orm_mode = True
+
+class CommunityCreate(BaseModel):
+    name: str
+    city: str
+
+@app.post("/communities/", response_model=CommunityResponse)
+def create_community(community: CommunityCreate, db: Session = Depends(get_db)):
+    db_community = Community(**community.dict())
+    db.add(db_community)
+    db.commit()
+    db.refresh(db_community)
+    return db_community
+
+
+@app.get("/analytics/communities/", response_model=List[CommunityResponse])
+def read_all_communities(db: Session = Depends(get_db)):
+    communities = db.query(Community).all()
+    print(communities)
+    return communities
+
+@app.get("/analytics/posts_by_city")
+def analytics_posts_by_city(db: Session = Depends(get_db)):
+    posts_by_city = get_posts_by_city(db)
+    return [{"city": city, "total_posts": total} for city, total in posts_by_city]
+
+
+@app.get("/analytics/average_rating")
+def analytics_average_rating(db: Session = Depends(get_db)):
+    average_rating = get_average_rating(db)
+    return {"average_rating": average_rating}
+
+
+@app.get("/analytics/most_active_users")
+def analytics_most_active_users(db: Session = Depends(get_db)):
+    most_active_users = get_most_active_users(db)
+    return [{"user_email": user_email, "total_posts": total} for user_email, total in most_active_users]
+
+
+@app.get("/analytics/upvotes_per_post")
+def analytics_upvotes_per_post(db: Session = Depends(get_db)):
+    upvotes_per_post = get_upvotes_per_post(db)
+    return [{"post_id": post_id, "post_title": post_title, "total_upvotes": total_upvotes} for post_id, post_title, total_upvotes in upvotes_per_post]
