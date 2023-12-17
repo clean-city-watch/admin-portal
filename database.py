@@ -21,6 +21,7 @@ class User(Base):
     role = Column(String) 
     token = Column(LargeBinary)
     created_at = Column(DateTime, default=datetime.utcnow)
+    
 
 
 class Community(Base):

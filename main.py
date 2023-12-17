@@ -1,8 +1,10 @@
+from itertools import groupby
+from operator import and_
 import string
 from fastapi import Depends, FastAPI, Form, HTTPException,status
-from sqlalchemy import create_engine
+from sqlalchemy import case, create_engine, func
 from crud import delete_admin_user_by_email, delete_user_by_email, get_admin_user_by_email, get_average_rating, get_most_active_users, get_posts_by_city, get_upvotes_per_post, get_user_by_email
-from database import SessionLocal, User,Users,Community
+from database import Organization, Post, SessionLocal, User,Users,Community
 from pydantic import BaseModel
 from email_validator import validate_email, EmailNotValidError
 from sqlalchemy.orm import Session
@@ -289,3 +291,78 @@ def analytics_most_active_users(db: Session = Depends(get_db)):
 def analytics_upvotes_per_post(db: Session = Depends(get_db)):
     upvotes_per_post = get_upvotes_per_post(db)
     return [{"post_id": post_id, "post_title": post_title, "total_upvotes": total_upvotes} for post_id, post_title, total_upvotes in upvotes_per_post]
+
+
+@app.get("/analytics/accepted_posts_per_month", response_model=List[dict])
+def analytics_accepted_posts_per_month(db: Session = Depends(get_db)):
+    accepted_posts_per_month = (
+        db.query(func.date_trunc('month', Post.timestamp).label('month'), func.count().label('accepted_posts'))
+        .filter(Post.published == True)
+        .group_by(func.date_trunc('month', Post.timestamp))
+        .all()
+    )
+
+    result = [{"month": post.month.strftime("%Y-%m"), "accepted_posts": post.accepted_posts} for post in accepted_posts_per_month]
+
+    return result
+
+@app.get("/analytics/resolved_posts_per_month", response_model=List[dict])
+def analytics_resolved_posts_per_month(db: Session = Depends(get_db)):
+    resolved_posts_per_month = (
+        db.query(func.date_trunc('month', Post.timestamp).label('month'), func.count().label('resolved_posts'))
+        .filter(Post.published == True, Post.status_id == 1)  
+        .group_by(func.date_trunc('month', Post.timestamp))
+        .all()
+    )
+
+    result = [{"month": post.month.strftime("%Y-%m"), "resolved_posts": post.resolved_posts} for post in resolved_posts_per_month]
+
+    return result
+
+
+@app.get("/analytics/pending_posts_per_month", response_model=List[dict])
+def analytics_pending_posts_per_month(db: Session = Depends(get_db)):
+    pending_posts_per_month = (
+        db.query(func.date_trunc('month', Post.timestamp).label('month'), func.count().label('pending_posts'))
+        .filter(Post.published == True, Post.status_id == 0)  # Assuming you have a constant PENDING_STATUS_ID
+        .group_by(func.date_trunc('month', Post.timestamp))
+        .all()
+    )
+
+    result = [{"month": post.month.strftime("%Y-%m"), "pending_posts": post.pending_posts} for post in pending_posts_per_month]
+
+    return result
+
+
+# from sqlalchemy import case, literal_column
+
+# @app.get("/analytics/organization_info", response_model=List[dict])
+# def analytics_organization_info(db: Session = Depends(get_db)):
+#     organizations_info = (
+#         db.query(
+#             Organization.name.label('organization_name'),
+#             func.count().label('total_posts'),
+#             func.sum(case([(Post.published == True, 1)], else_=0)).label('accepted_posts'),
+#             func.sum(case([(and_(Post.published == True, Post.status_id == 1), 1)], else_=0)).label('resolved_posts'),
+#             func.sum(case([(and_(Post.published == True, Post.status_id == 0), 1)], else_=0)).label('pending_posts')
+#         )
+#         .join(Users, Organization.id == Users.organization_id)
+#         .join(Post, Users.id == Post.author_id)
+#         .group_by(Organization.name)
+#         .all()
+#     )
+
+#     result = [
+#         {
+#             "organization_name": org.organization_name,
+#             "total_posts": org.total_posts,
+#             "accepted_posts": org.accepted_posts,
+#             "resolved_posts": org.resolved_posts,
+#             "pending_posts": org.pending_posts
+#         }
+#         for org in organizations_info
+#     ]
+
+#     return result
+
+
