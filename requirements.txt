@@ -1,0 +1,6 @@
+requirements.txt
+python-decouple
+SQLAlchemy
+uvicorn
+fastapi
+email_validator
